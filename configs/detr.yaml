@@ -1,0 +1,52 @@
+data:
+  train: data/coco_trainval35k.json
+  valid: data/coco_minival5k.json
+basenet:
+  type:
+  arch:
+  pretrained:
+  dilation:     #DC5 in the paper
+  return_interm_layers:
+  lr_backbone:
+transformer:
+  hidden_dims:
+  position_embedding:
+  dropout:
+  nheads:
+  dim_feedforward:
+  enc_layers:
+  dec_layers:
+  pre_norm:
+detr:
+  aux_loss:
+  num_queries:
+  num_classes:
+box_matcher:
+  cost_class:
+  cost_bbox:
+  cost_giou:
+loss:
+  bbox_loss_coef:
+  giou_loss_coef:
+  eos_coef:
+params:
+  batch_size: 2
+  optimizer: AdamW
+  lr: 1e-4
+  weight_decay: 1e-4
+  epoch: 300
+  random_seed: 3000
+  image_size: 160x160 #rowsxcols
+  classes: aeroplane|bicycle|bird|boat|bottle|bus|car|cat|chair|cow|diningtable|dog|horse|motorbike|person|pottedplant|sheep|sofa|train|tvmonitor
+  data_worker: 6
+  do_aug: True
+inference:
+  top_k: 1000
+  resized: False
+model:
+  model_path: None
+  exp_path: expr/pre_ex0
+  is_finetune: False
+cuda:
+  using_cuda: True
+  gpu_id: 0
