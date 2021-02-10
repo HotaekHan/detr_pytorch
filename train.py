@@ -47,8 +47,61 @@ class Trainer(object):
 
         self.device = torch.device(cuda_str if config['cuda']['using_cuda'] else "cpu")
 
+        '''Data'''
+        assert trainset
+        assert validset
+        print('==> Preparing data..')
+        img_size = config['params']['image_size'].split('x')
+        img_size = (int(img_size[0]), int(img_size[1]))
+
+        self.transform_train = transforms.Compose([
+            transforms.Resize(size=img_size),
+            transforms.RandomCrop(size=img_size, padding=4),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+
+        self.transform_test = transforms.Compose([
+            transforms.Resize(size=img_size),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+
+        ''' data loader'''
+        train_loader = torch.utils.data.DataLoader(
+            trainset, batch_size=config['params']['batch_size'],
+            shuffle=True, num_workers=config['params']['workers'],
+            collate_fn=self.collate_fn_train,
+            pin_memory=True)
+        valid_loader = torch.utils.data.DataLoader(
+            validset, batch_size=config['params']['batch_size'],
+            shuffle=False, num_workers=config['params']['workers'],
+            collate_fn=self.collate_fn_test,
+            pin_memory=True)
+
+        self.dataloaders = {'train': train_loader, 'valid': valid_loader}
+
         '''tensorboard'''
         self.summary_writer = SummaryWriter(os.path.join(config['model']['exp_path'], 'log'))
+
+    def collate_fn_train(self, batch):
+        imgs = [self.transform_train(x[0]) for x in batch]
+        targets = [x[1] for x in batch]
+
+        inputs = torch.stack(imgs)
+        targets = torch.tensor(targets)
+
+        return inputs, targets
+
+    def collate_fn_test(self, batch):
+        imgs = [self.transform_test(x[0]) for x in batch]
+        targets = [x[1] for x in batch]
+
+        inputs = torch.stack(imgs)
+        targets = torch.tensor(targets)
+
+        return inputs, targets
 
     def init_net(self):
         '''Model'''
@@ -134,8 +187,10 @@ class Trainer(object):
         acc_loss = 0.
         avg_loss = 0.
 
+        dataloader = self.dataloaders[phase]
+
         with torch.set_grad_enabled(is_train):
-            for batch_idx, (inputs, loc_targets, cls_targets, mask_targets, paths) in enumerate(train_loader):
+            for batch_idx, (inputs, loc_targets, cls_targets, mask_targets, paths) in enumerate(dataloader):
                 inputs = inputs.to(self.device)
                 loc_targets = loc_targets.to(self.device)
                 cls_targets = cls_targets.to(self.device)

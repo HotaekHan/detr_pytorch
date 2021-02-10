@@ -2,33 +2,33 @@ data:
   train: data/coco_trainval35k.json
   valid: data/coco_minival5k.json
 basenet:
-  type:
-  arch:
-  pretrained:
-  dilation:     #DC5 in the paper
-  return_interm_layers:
-  lr_backbone:
+  type: resnet
+  arch: resnet50
+  pretrained: True
+  dilation: False     #DC5 in the paper
+  return_interm_layers: False
+  lr_backbone: 1e-5
 transformer:
-  hidden_dims:
-  position_embedding:
-  dropout:
-  nheads:
-  dim_feedforward:
-  enc_layers:
-  dec_layers:
-  pre_norm:
+  hidden_dims: 256
+  position_embedding: sine
+  dropout: 0.1
+  nheads: 8
+  dim_feedforward: 2048
+  enc_layers: 6
+  dec_layers: 6
+  pre_norm: False
 detr:
-  aux_loss:
-  num_queries:
+  aux_loss: True
+  num_queries: 100
   num_classes:
 box_matcher:
-  cost_class:
-  cost_bbox:
-  cost_giou:
+  cost_class: 1
+  cost_bbox: 5
+  cost_giou: 2
 loss:
-  bbox_loss_coef:
-  giou_loss_coef:
-  eos_coef:
+  bbox_loss_coef: 5
+  giou_loss_coef: 2
+  eos_coef: 0.1
 params:
   batch_size: 2
   optimizer: AdamW
@@ -45,7 +45,7 @@ inference:
   resized: False
 model:
   model_path: None
-  exp_path: expr/pre_ex0
+  exp_path: /data/Expr/Projects/8_object_detection/detr/tmp
   is_finetune: False
 cuda:
   using_cuda: True
