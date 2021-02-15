@@ -4,7 +4,7 @@ from models.backbones import ResNet, ResNetD, ShuffleNetV2, TResNet, Mobilenetv3
 def load_backbone(config, norm_layer=None):
     num_classes = 1000
     is_pretrained = config['basenet']['pretrained']
-    is_last_dilation = config['basnet']['dilation']
+    is_last_dilation = config['basenet']['dilation']
     if config['basenet']['type'] == 'resnet':
         if config['basenet']['arch'] == 'resnet18':
             net = ResNet.resnet18(pretrained=is_pretrained, progress=False, num_classes=num_classes,

@@ -16,7 +16,11 @@ coco_root = '/data/Projects/5_object_detection/coco'
 coco = COCO(annFile)
 categories = coco.loadCats(coco.getCatIds())
 class_names = [cat['name'] for cat in categories]
-print('COCO categories: \n{}\n'.format(' '.join(class_names)))
+print('COCO categories: \n{}\n'.format('|'.join(class_names)))
+fout = open('coco_classes.txt', 'w')
+for class_name in class_names:
+    fout.write(f'{class_name}\n')
+fout.close()
 
 img_ids = coco.getImgIds()
 
@@ -41,8 +45,10 @@ for img_id in tqdm(img_ids):
         ymax = ymin + bbox[3]
         class_name = coco.loadCats(ann['category_id'])[0]['name']
 
-        # cv2.rectangle(img, (xmin, ymin), (xmax, ymax), (0, 255, 0))
-        # cv2.putText(img, class_name, (xmin, ymin), cv2.FONT_HERSHEY_PLAIN, 1, [225, 255, 255], 1)
+        # cv2.rectangle(img, (int(xmin), int(ymin)), (int(xmax), int(ymax)), (0, 255, 0))
+        # cv2.putText(img, class_name, (int(xmin), int(ymin)), cv2.FONT_HERSHEY_PLAIN, 1, [225, 255, 255], 1)
+        # cv2.imshow('test', img)
+        # cv2.waitKey(0)
 
         boxes.append([xmin, ymin, xmax, ymax])
         labels.append([class_name])

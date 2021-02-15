@@ -1,5 +1,6 @@
 from typing import Dict, List
 
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.models._utils import IntermediateLayerGetter
@@ -72,7 +73,7 @@ class BaseNet(nn.Module):
         num_channels = 512 if config['basenet']['arch'] in ('resnet18', 'resnet34') else 2048
 
         ''' freeze backbone '''
-        is_train_backbone = config['basenet']['lr_backbone'] > 0
+        is_train_backbone = float(config['basenet']['lr_backbone']) > 0.0
         for name, parameter in self.backbone.named_parameters():
             if not is_train_backbone or 'layer2' not in name and 'layer3' not in name and 'layer4' not in name:
                 parameter.requires_grad_(False)

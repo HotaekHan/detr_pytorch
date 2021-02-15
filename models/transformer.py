@@ -286,7 +286,7 @@ def _get_activation_fn(activation):
 
 def build_transformer(config):
     return Transformer(
-        d_model=config['transformer']['hidden_dim'],
+        d_model=config['transformer']['hidden_dims'],
         dropout=config['transformer']['dropout'],
         nhead=config['transformer']['nheads'],
         dim_feedforward=config['transformer']['dim_feedforward'],

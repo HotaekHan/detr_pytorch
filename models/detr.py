@@ -19,20 +19,18 @@ class FFN(nn.Module):
         return x
 
 class DETR(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, num_classes):
         super(DETR, self).__init__()
 
         self.basenet = build_basenet(config=config)
         self.transformer = build_transformer(config=config)
         self.aux_loss = config['detr']['aux_loss']
 
-        num_queries = config['detr']['num_queries']
-        num_classes = config['params']['num_classes']
-        self.num_queries = num_queries
-        hidden_dims = self.transformer.hidden_dims
+        self.num_queries = int(config['detr']['num_queries'])
+        hidden_dims = self.transformer.d_model
         self.class_embed = nn.Linear(hidden_dims, num_classes + 1)
-        self.box_embed = FFN(hidden_dims, hidden_dims, 4, 3)
-        self.query_embed = nn.Embedding(num_queries, hidden_dims)
+        self.bbox_embed = FFN(hidden_dims, hidden_dims, 4, 3)
+        self.query_embed = nn.Embedding(self.num_queries, hidden_dims)
         self.input_proj = nn.Conv2d(self.basenet.num_channels, hidden_dims, kernel_size=1)
 
     def forward(self, samples: NestedTensor):
@@ -52,7 +50,7 @@ class DETR(nn.Module):
         """
         if isinstance(samples, (list, torch.Tensor)):
             samples = nested_tensor_from_tensor_list(samples)
-        features, pos = self.backbone(samples)
+        features, pos = self.basenet(samples)
 
         src, mask = features[-1].decompose()
         assert mask is not None

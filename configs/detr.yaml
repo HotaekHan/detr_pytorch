@@ -1,6 +1,8 @@
 data:
   train: data/coco_trainval35k.json
   valid: data/coco_minival5k.json
+#  train: data/coco_sample.json
+#  valid: data/coco_sample.json
 basenet:
   type: resnet
   arch: resnet50
@@ -20,7 +22,6 @@ transformer:
 detr:
   aux_loss: True
   num_queries: 100
-  num_classes:
 box_matcher:
   cost_class: 1
   cost_bbox: 5
@@ -30,16 +31,15 @@ loss:
   giou_loss_coef: 2
   eos_coef: 0.1
 params:
-  batch_size: 2
+  batch_size: 7
   optimizer: AdamW
   lr: 1e-4
   weight_decay: 1e-4
   epoch: 300
   random_seed: 3000
-  image_size: 160x160 #rowsxcols
-  classes: aeroplane|bicycle|bird|boat|bottle|bus|car|cat|chair|cow|diningtable|dog|horse|motorbike|person|pottedplant|sheep|sofa|train|tvmonitor
-  data_worker: 6
-  do_aug: True
+  image_size: 800x800 #rowsxcols
+  classes: data/coco_classes.txt
+  data_worker: 0
 inference:
   top_k: 1000
   resized: False

@@ -3,6 +3,8 @@ from typing import Optional, List
 import torch
 from torch import Tensor
 
+import yaml
+
 # needed due to empty tensor bug in pytorch and torchvision 0.5
 import torchvision
 if float(torchvision.__version__[:3]) < 0.7:
@@ -100,3 +102,20 @@ def nested_tensor_from_tensor_list(tensor_list: List[Tensor]):
     else:
         raise ValueError('not supported')
     return NestedTensor(tensor, mask)
+
+def get_config(conf):
+    with open(conf, 'r') as stream:
+        return yaml.load(stream, Loader=yaml.SafeLoader)
+
+def print_config(conf):
+    print(yaml.dump(conf, default_flow_style=False, default_style=''))
+
+def read_txt(txt_path):
+    f_read = open(txt_path, 'r')
+    lines = f_read.readlines()
+
+    out = list()
+    for line in lines:
+        out.append(line.rstrip())
+
+    return out
