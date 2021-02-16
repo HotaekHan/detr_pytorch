@@ -8,7 +8,6 @@ import shutil
 # pytorch
 import torch
 import torch.optim as optim
-import torchvision.transforms as transforms
 from torch.optim import lr_scheduler
 from torch import autograd
 
@@ -16,6 +15,7 @@ from torch import autograd
 from torch.utils.tensorboard import SummaryWriter
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
+import cv2
 
 # user-defined
 from models.detr import DETR
@@ -243,36 +243,6 @@ if __name__ == '__main__':
     np.random.seed(config['params']['random_seed'])
     torch.manual_seed(config['params']['random_seed'])
 
-    # def make_coco_transforms(self, image_set):
-    #     normalize = T.Compose([
-    #         T.ToTensor(),
-    #         T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    #     ])
-    #
-    #     scales = [480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800]
-    #
-    #     if image_set == 'train':
-    #         return T.Compose([
-    #             T.RandomHorizontalFlip(),
-    #             T.RandomSelect(
-    #                 T.RandomResize(scales, max_size=1333),
-    #                 T.Compose([
-    #                     T.RandomResize([400, 500, 600]),
-    #                     T.RandomSizeCrop(384, 600),
-    #                     T.RandomResize(scales, max_size=1333),
-    #                 ])
-    #             ),
-    #             normalize,
-    #         ])
-    #
-    #     if image_set == 'val':
-    #         return T.Compose([
-    #             T.RandomResize([800], max_size=1333),
-    #             normalize,
-    #         ])
-    #
-    #     raise ValueError(f'unknown {image_set}')
-
     '''Data'''
     target_classes = utils.read_txt(config['params']['classes'])
     num_classes = len(target_classes)
@@ -280,33 +250,48 @@ if __name__ == '__main__':
     img_size = (int(img_size[0]), int(img_size[1]))
 
     print('==> Preparing data..')
-    bbox_params = A.BboxParams(format='pascal_voc', min_area=1, min_visibility=0.3)
+    bbox_params = A.BboxParams(format='pascal_voc', min_visibility=0.3)
     train_transforms = A.Compose([
-        A.Resize(height=img_size[0], width=img_size[1], p=1.0),
-        # A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225), max_pixel_value=255.0, p=1.0),
-        A.Normalize(mean=(0.0, 0.0, 0.0), std=(1.0, 1.0, 1.0), max_pixel_value=255.0, p=1.0),
+        A.HorizontalFlip(p=0.5),
+        A.OneOf([
+            A.Sequential([
+                A.Resize(height=img_size[0], width=img_size[1], p=1.0),
+            ], p=1.0),
+            A.Sequential([
+                A.RandomSizedBBoxSafeCrop(height=img_size[0], width=img_size[1], p=1.0),
+            ], p=1.0)
+        ], p=1.0),
+
+        A.OneOf([
+            A.Sequential([
+                A.GaussNoise(var_limit=(100, 150), p=0.5),
+                A.MotionBlur(blur_limit=17, p=0.5)
+            ], p=1.0),
+            A.Sequential([
+                A.GaussNoise(var_limit=(100, 150), p=0.5),
+                A.MotionBlur(blur_limit=17, p=0.5),
+                A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),
+                A.HueSaturationValue(hue_shift_limit=20, sat_shift_limit=30, val_shift_limit=0, p=0.5),
+            ], p=1.0),
+            A.Sequential([
+                A.GaussNoise(var_limit=(100, 150), p=0.5),
+                A.MotionBlur(blur_limit=17, p=0.5),
+                A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),
+                A.HueSaturationValue(hue_shift_limit=20, sat_shift_limit=30, val_shift_limit=0, p=0.5),
+                A.ChannelShuffle(p=0.5),
+                A.ShiftScaleRotate(shift_limit=0.1, scale_limit=(-0.15, 0.15), rotate_limit=30, p=0.5,
+                                   border_mode=cv2.BORDER_CONSTANT, value=0),
+            ], p=1.0)
+        ], p=1.0),
+
+        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225), max_pixel_value=255.0, p=1.0),
         ToTensorV2()
     ], bbox_params=bbox_params, p=1.0)
     valid_transforms = A.Compose([
         A.Resize(height=img_size[0], width=img_size[1], p=1.0),
-        # A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225), max_pixel_value=255.0, p=1.0),
-        A.Normalize(mean=(0.0, 0.0, 0.0), std=(1.0, 1.0, 1.0), max_pixel_value=255.0, p=1.0),
+        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225), max_pixel_value=255.0, p=1.0),
         ToTensorV2()
     ], bbox_params=bbox_params, p=1.0)
-
-    # self.transform_train = transforms.Compose([
-    #     transforms.Resize(size=img_size),
-    #     transforms.RandomCrop(size=img_size, padding=4),
-    #     transforms.RandomHorizontalFlip(p=0.5),
-    #     transforms.ToTensor(),
-    #     transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
-    # ])
-    #
-    # self.transform_test = transforms.Compose([
-    #     transforms.Resize(size=img_size),
-    #     transforms.ToTensor(),
-    #     transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
-    # ])
 
     train_dataset = jsonDataset(path=config['data']['train'], classes=target_classes,
                                 transforms=train_transforms)
