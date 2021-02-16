@@ -129,32 +129,35 @@ class jsonDataset(data.Dataset):
 
         bboxes = [bbox.tolist() + [label.item()] for bbox, label in zip(boxes, labels)]
         augmented = self.transforms(image=img, bboxes=bboxes)
-        # img = np.ascontiguousarray(augmented['image'])
         img = augmented['image']
         rows, cols = img.shape[1:]
         boxes = augmented['bboxes']
         boxes = [list(bbox) for bbox in boxes]
         labels = [bbox.pop() for bbox in boxes]
-        boxes = torch.tensor(boxes, dtype=torch.float32)
-        boxes = box_xyxy_to_cxcywh(boxes)
-        boxes = boxes / torch.tensor([cols, rows, cols, rows], dtype=torch.float32)
-        labels = torch.tensor(labels, dtype=torch.int64)
 
-        mask = torch.zeros(img.shape[0], img.shape[1], dtype=torch.int64)
-
+        mask = torch.zeros(rows, cols, dtype=torch.int64)
         for box in boxes:
             mask[int(box[1]):int(box[3]), int(box[0]):int(box[2])] = 1
 
         if self.view_img is True:
+            np_img = img.numpy()
+            np_img = np.transpose(np_img, (1, 2, 0))
+            np_img = np.uint8(np_img * 255)
+            np_img = np.ascontiguousarray(np_img)
             for idx_box, box in enumerate(boxes):
-                cv2.rectangle(img, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (0,255,0))
-                class_idx = labels[idx_box].item()
+                cv2.rectangle(np_img, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (0, 255, 0))
+                class_idx = labels[idx_box]
                 text_size = cv2.getTextSize(self.class_idx_map[class_idx], cv2.FONT_HERSHEY_PLAIN, 1, 1)
-                cv2.putText(img, self.class_idx_map[class_idx], (int(box[0]), int(box[1]) - text_size[1]), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 255), 1)
+                cv2.putText(np_img, self.class_idx_map[class_idx], (int(box[0]), int(box[1]) - text_size[1]), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 255), 1)
 
-            cv2.imwrite(os.path.join("crop_test", str(idx)+".jpg"), img)
+            cv2.imwrite(os.path.join("crop_test", str(idx)+".jpg"), np_img)
             mask_img = np.uint8(mask * 255.)
             cv2.imwrite(os.path.join("crop_test", str(idx)+"_mask.jpg"), mask_img)
+
+        boxes = torch.tensor(boxes, dtype=torch.float32)
+        boxes = box_xyxy_to_cxcywh(boxes)
+        boxes = boxes / torch.tensor([cols, rows, cols, rows], dtype=torch.float32)
+        labels = torch.tensor(labels, dtype=torch.int64)
 
         target = dict()
         target['boxes'] = boxes
@@ -221,42 +224,97 @@ class ConcatBalancedDataset(data.Dataset):
 
 
 def test():
-    import torchvision
+    import albumentations as A
+    from albumentations.pytorch import ToTensorV2
+    import utils
+    from box_ops import box_cxcywh_to_xyxy
 
-    # transform = transforms.Compose([
-    #     transforms.ToTensor(),
-    #     transforms.Normalize((0.485,0.456,0.406), (0.229,0.224,0.225))
-    # ])
     # set random seed
     random.seed(777)
     np.random.seed(777)
     torch.manual_seed(777)
 
-    transform = transforms.Compose([
-        transforms.ToTensor()
-    ])
+    img_size = (480, 640)
+    aspect_ratio = img_size[1] / img_size[0]
 
-    classes = 'aeroplane|bicycle|bird|boat|bottle|bus|car|cat|chair|cow|diningtable|dog|horse|motorbike|person|pottedplant|sheep|sofa|train|tvmonitor'
-    classes = classes.split('|')
+    target_classes = utils.read_txt('data/coco_classes.txt')
+    bbox_params = A.BboxParams(format='pascal_voc', min_visibility=0.3)
+    transforms = A.Compose([
+        A.HorizontalFlip(p=0.5),
+        A.OneOf([
+            A.Sequential([
+                A.Resize(height=img_size[0], width=img_size[1], p=1.0),
+            ], p=1.0),
+            A.Sequential([
+                A.RandomSizedBBoxSafeCrop(height=img_size[0], width=img_size[1], p=1.0),
+            ], p=1.0)
+        ], p=1.0),
 
-    dataset1 = jsonDataset(path='data/voc.json', classes=classes, transform=transform,
-                          input_image_size=(300, 300), num_crops=1, view_image=True, do_aug=True)
-    print(len(dataset1))
-    dataset2 = jsonDataset(path='data/cifar.json', classes=classes, transform=transform,
-                          input_image_size=(150, 150), num_crops=1, view_image=True, do_aug=True)
-    print(len(dataset2))
+        A.OneOf([
+            A.Sequential([
+                A.GaussNoise(var_limit=(100, 150), p=0.5),
+                A.MotionBlur(blur_limit=17, p=0.5)
+            ], p=1.0),
+            A.Sequential([
+                A.GaussNoise(var_limit=(100, 150), p=0.5),
+                A.MotionBlur(blur_limit=17, p=0.5),
+                A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),
+                A.HueSaturationValue(hue_shift_limit=20, sat_shift_limit=30, val_shift_limit=0, p=0.5),
+            ], p=1.0),
+            A.Sequential([
+                A.GaussNoise(var_limit=(100, 150), p=0.5),
+                A.MotionBlur(blur_limit=17, p=0.5),
+                A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),
+                A.HueSaturationValue(hue_shift_limit=20, sat_shift_limit=30, val_shift_limit=0, p=0.5),
+                A.ChannelShuffle(p=0.5),
+                A.ShiftScaleRotate(shift_limit=0.1, scale_limit=(-0.15, 0.15), rotate_limit=30, p=0.5,
+                                   border_mode=cv2.BORDER_CONSTANT, value=0),
+            ], p=1.0)
+        ], p=1.0),
 
-    dataset = ConcatBalancedDataset([dataset1, dataset2])
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=6, shuffle=False, num_workers=0,
-                                             collate_fn=dataset1.collate_fn)
+        # A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225), max_pixel_value=255.0, p=1.0),
+        A.Normalize(mean=(0.0, 0.0, 0.0), std=(1.0, 1.0, 1.0), max_pixel_value=255.0, p=1.0),
+        ToTensorV2()
+    ], bbox_params=bbox_params, p=1.0)
+
+    dataset1 = jsonDataset(path='data/coco_sample.json', classes=target_classes, transforms=transforms,
+                           view_image=True)
+
+    dataloader = torch.utils.data.DataLoader(dataset1, batch_size=1, shuffle=False, num_workers=0)
 
     while True:
-        for idx, (images, loc_targets, cls_targets, mask_targets, paths) in enumerate(dataloader):
+        for idx, (images, targets, masks, path) in enumerate(dataloader):
             np_img = images.numpy()
-            print(images.size())
-            print(loc_targets.size())
-            print(cls_targets.size())
-            print(mask_targets.size())
+            np_img = np.squeeze(np_img, axis=0)
+            np_img = np.transpose(np_img, (1, 2, 0))
+            np_img = np.uint8(np_img * 255)
+            np_img = np.ascontiguousarray(np_img)
+            rows = np_img.shape[0]
+            cols = np_img.shape[1]
+
+            bboxes = targets['boxes']
+            labels = targets['labels']
+
+            bboxes = bboxes * torch.tensor([cols, rows, cols, rows], dtype=torch.float32)
+            bboxes = box_cxcywh_to_xyxy(bboxes)
+            bboxes = bboxes.numpy()
+            bboxes = np.squeeze(bboxes, axis=0)
+            labels = labels.numpy()
+            labels = np.squeeze(labels, axis=0)
+
+            for idx_box, box in enumerate(bboxes):
+                cv2.rectangle(np_img, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (0, 255, 0))
+                class_idx = labels[idx_box]
+                text_size = cv2.getTextSize(dataset1.class_idx_map[class_idx], cv2.FONT_HERSHEY_PLAIN, 1, 1)
+                cv2.putText(np_img, dataset1.class_idx_map[class_idx], (int(box[0]), int(box[1]) - text_size[1]),
+                            cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 255), 1)
+
+            cv2.imshow('test', np_img)
+            cv2.waitKey(0)
+
+            # print(loc_targets.size())
+            # print(cls_targets.size())
+            # print(mask_targets.size())
         break
 
 if __name__ == '__main__':
