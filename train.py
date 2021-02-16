@@ -145,7 +145,7 @@ class Trainer(object):
 
         utils.print_config(config)
 
-        input("Press any key to continue..")
+        # input("Press any key to continue..")
 
     def train_one_epoch(self, epoch, phase):
         is_train = False
@@ -179,25 +179,22 @@ class Trainer(object):
 
                 acc_loss += losses.item()
                 avg_loss = acc_loss / (batch_idx + 1)
-                print(f'[{phase}] epoch: {epoch:3d} | iter: {batch_idx:4d} | avg_loss: {avg_loss:.4f}')
+                print(f'[{phase}] epoch: {epoch:3d} | iter: {batch_idx:4d} | avg_loss: {avg_loss:.4f} | '
+                      f'ce_loss: {loss_dict["loss_ce"]:.4f} | bbox_loss: {loss_dict["loss_bbox"]:.4f} | '
+                      f'giou_loss: {loss_dict["loss_giou"]:.4f}')
 
-                # print('[%s] epoch: %3d | iter: %4d | loc_loss: %.3f | cls_loss: %.3f | '
-                #       'train_loss: %.3f | avg_loss: %.3f | matched_anchors: %d'
-                #       % (phase, epoch, batch_idx, loc_loss.item(), cls_loss.item(), loss.item(),
-                #          avg_loss, num_matched_anchors))
-
-                # if is_train is True:
-                #     self.summary_writer.add_scalar('train/loc_loss', loc_loss.item(), self.global_iter_train)
-                #     self.summary_writer.add_scalar('train/cls_loss', cls_loss.item(), self.global_iter_train)
-                #     self.summary_writer.add_scalar('train/mask_loss', mask_loss.item(), self.global_iter_train)
-                #     self.summary_writer.add_scalar('train/train_loss', loss.item(), self.global_iter_train)
-                #     self.global_iter_train += 1
-                # else:
-                #     self.summary_writer.add_scalar('valid/loc_loss', loc_loss.item(), self.global_iter_valid)
-                #     self.summary_writer.add_scalar('valid/cls_loss', cls_loss.item(), self.global_iter_valid)
-                #     self.summary_writer.add_scalar('valid/mask_loss', mask_loss.item(), self.global_iter_valid)
-                #     self.summary_writer.add_scalar('valid/train_loss', loss.item(), self.global_iter_valid)
-                #     self.global_iter_valid += 1
+                if is_train is True:
+                    self.summary_writer.add_scalar('train/avg_loss', avg_loss, self.global_iter_train)
+                    self.summary_writer.add_scalar('train/ce_loss', loss_dict['loss_ce'], self.global_iter_train)
+                    self.summary_writer.add_scalar('train/bbox_loss', loss_dict['loss_bbox'], self.global_iter_train)
+                    self.summary_writer.add_scalar('train/giou_loss', loss_dict['loss_giou'], self.global_iter_train)
+                    self.global_iter_train += 1
+                else:
+                    self.summary_writer.add_scalar('valid/avg_loss', avg_loss, self.global_iter_valid)
+                    self.summary_writer.add_scalar('valid/ce_loss', loss_dict['loss_ce'], self.global_iter_valid)
+                    self.summary_writer.add_scalar('valid/bbox_loss', loss_dict['loss_bbox'], self.global_iter_valid)
+                    self.summary_writer.add_scalar('valid/giou_loss', loss_dict['loss_giou'], self.global_iter_valid)
+                    self.global_iter_valid += 1
 
         return avg_loss
 
