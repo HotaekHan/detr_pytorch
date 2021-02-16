@@ -13,6 +13,8 @@ import cv2
 import torch
 import torch.utils.data as data
 
+from box_ops import box_xyxy_to_cxcywh
+
 
 class jsonDataset(data.Dataset):
     def __init__(self, path, classes, transforms, view_image=False,
@@ -65,22 +67,14 @@ class jsonDataset(data.Dataset):
                 cols = xmax - xmin
 
                 if xmin < 0 or ymin < 0:
-                    if xmin == -1:
-                        xmin = 0
-                    elif ymin == -1:
-                        ymin = 0
-                    else:
-                        print('negative coordinate: [xmin: ' + str(xmin) + ', ymin: ' + str(ymin) + ']')
-                        print(gt_data['image_path'])
+                    print('negative coordinate: [xmin: ' + str(xmin) + ', ymin: ' + str(ymin) + ']')
+                    print(gt_data['image_path'])
+                    continue
 
-                if xmax >= img_cols or ymax >= img_rows:
-                    if xmax == img_cols:
-                        xmax = img_cols - 1
-                    elif ymax == img_rows:
-                        ymax = img_rows -1
-                    else:
-                        print('over maximum size: [xmax: ' + str(xmax) + ', ymax: ' + str(ymax) + ']')
-                        print(gt_data['image_path'])
+                if xmax > img_cols or ymax > img_rows:
+                    print('over maximum size: [xmax: ' + str(xmax) + ', ymax: ' + str(ymax) + ']')
+                    print(gt_data['image_path'])
+                    continue
 
                 if cols < min_cols:
                     print('cols is lower than ' + str(min_cols) + ': [' + str(xmin) + ', ' + str(ymin) + ', ' +
@@ -137,10 +131,13 @@ class jsonDataset(data.Dataset):
         augmented = self.transforms(image=img, bboxes=bboxes)
         # img = np.ascontiguousarray(augmented['image'])
         img = augmented['image']
+        rows, cols = img.shape[1:]
         boxes = augmented['bboxes']
         boxes = [list(bbox) for bbox in boxes]
         labels = [bbox.pop() for bbox in boxes]
         boxes = torch.tensor(boxes, dtype=torch.float32)
+        boxes = box_xyxy_to_cxcywh(boxes)
+        boxes = boxes / torch.tensor([cols, rows, cols, rows], dtype=torch.float32)
         labels = torch.tensor(labels, dtype=torch.int64)
 
         mask = torch.zeros(img.shape[0], img.shape[1], dtype=torch.int64)

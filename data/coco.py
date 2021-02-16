@@ -38,6 +38,8 @@ for img_id in tqdm(img_ids):
     boxes = list()
     labels = list()
     for ann in anns:
+        if ann['image_id'] != img_id:
+            continue
         bbox = ann['bbox']
         xmin = bbox[0]
         ymin = bbox[1]
