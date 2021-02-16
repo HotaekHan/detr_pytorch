@@ -8,7 +8,6 @@ is_out = True
 out_path = 'coco_trainval35k.json'
 # out_path = 'coco_minival5k.json'
 
-# annFile = '/coco/annotations/instances_valminusminival2014.json'
 annFile = '/data/Projects/5_object_detection/coco/annotations/instances_valminusminival2014.json'
 # annFile = '/data/Projects/5_object_detection/coco/annotations/instances_minival2014.json'
 coco_root = '/data/Projects/5_object_detection/coco'
@@ -38,7 +37,7 @@ for img_id in tqdm(img_ids):
     boxes = list()
     labels = list()
     for ann in anns:
-        if ann['image_id'] != img_id:
+        if ann['image_id'] != img_id or ann['iscrowd'] != 0:
             continue
         bbox = ann['bbox']
         xmin = bbox[0]
