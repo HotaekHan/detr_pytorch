@@ -97,9 +97,9 @@ class jsonDataset(data.Dataset):
                 box.append([float(xmin), float(ymin), float(xmax), float(ymax)])
                 label.append(int(class_idx))
 
-            # if len(box) == 0 or len(label) == 0:
-            #     print('none of object exist in the image: ' + gt_data['image_path'])
-            #     continue
+            if len(box) == 0 or len(label) == 0:
+                print('none of object exist in the image: ' + gt_data['image_path'])
+                continue
 
             all_boxes.append(box)
             all_labels.append(label)

@@ -1,9 +1,14 @@
 from typing import Optional, List
+import os
+import collections
 
 import torch
 from torch import Tensor
 
 import yaml
+import cv2
+
+from box_ops import box_cxcywh_to_xyxy
 
 # needed due to empty tensor bug in pytorch and torchvision 0.5
 import torchvision
@@ -119,3 +124,82 @@ def read_txt(txt_path):
         out.append(line.rstrip())
 
     return out
+
+def _get_box_color(class_name):
+    # TODO: create color code
+    box_color = (10, 180, 10)
+    return box_color
+
+def _load_weights(weights_dict):
+    key, value = list(weights_dict.items())[0]
+
+    trained_data_parallel = False
+    if key[:7] == 'module.':
+        trained_data_parallel = True
+
+    if trained_data_parallel is True:
+        new_weights = collections.OrderedDict()
+        for old_key in weights_dict:
+            new_key = old_key[7:]
+            new_weights[new_key] = weights_dict[old_key]
+    else:
+        new_weights = weights_dict
+
+    return new_weights
+
+def _write_results(class_logits, bbox_preds, img_paths, class_idx_map, input_size, out_dir):
+    for iter_batch, img_path in enumerate(img_paths):
+        img_name = os.path.basename(img_path)
+        out_path = os.path.join(out_dir, img_name.replace('.jpg', '.txt'))
+        f_out = open(out_path, 'w')
+
+        img = cv2.imread(img_path)
+        resized_rows = input_size[0]
+        resized_cols = input_size[1]
+        ori_rows = img.shape[0]
+        ori_cols = img.shape[1]
+        ws = ori_cols / resized_cols
+        hs = ori_rows / resized_rows
+
+        class_logit = class_logits[iter_batch]
+        bbox_pred = bbox_preds[iter_batch]
+
+        class_pred = class_logit.softmax(dim=1)
+        class_pred_label = class_pred.argmax(dim=1).detach().cpu().tolist()
+        bbox_pred = bbox_pred * torch.tensor([resized_cols, resized_rows, resized_cols, resized_rows],
+                                             dtype=torch.float32, device=bbox_pred.device)
+        bbox_pred = box_cxcywh_to_xyxy(bbox_pred)
+        bbox_pred = bbox_pred.detach().cpu().tolist()
+
+        for box_idx, box_label in enumerate(class_pred_label):
+            ''' background idx is 0 '''
+            if box_label == 0:
+                continue
+
+            box = bbox_pred[box_idx]
+
+            ''' draw box '''
+            pt1 = (int(box[0] * ws), int(box[1] * hs))
+            pt2 = (int(box[2] * ws), int(box[3] * hs))
+            class_name = class_idx_map[box_label]
+            score = float(class_pred[box_idx][box_label].item())
+            out_text = class_name + ':' + format(score, ".2f")
+            box_color = _get_box_color(class_name)
+            cv2.rectangle(img, pt1, pt2, box_color, 1)
+            t_size = cv2.getTextSize(out_text, cv2.FONT_HERSHEY_PLAIN, 1, 1)[0]
+            font_pt2 = pt1[0] + (t_size[0] + 3), pt1[1] - (t_size[1] + 4)
+            cv2.rectangle(img, pt1, font_pt2, box_color, -1)
+            cv2.putText(img, out_text, (pt1[0], pt1[1] - (t_size[1] - 7)), cv2.FONT_HERSHEY_PLAIN, 1,
+                        [225, 255, 255], 1)
+
+            ''' write the result '''
+            out_txt = str(class_name) + '\t' + \
+                      str(pt1[0]) + '\t' + str(pt1[1]) + '\t' + str(pt2[0]) + '\t' + str(pt2[1]) + '\t' \
+                      + str(score) + '\n'
+            f_out.write(out_txt)
+
+        cv2.imwrite(os.path.join(out_dir, img_name), img)
+        f_out.close()
+
+
+

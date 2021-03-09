@@ -1,8 +1,10 @@
 data:
-  train: data/coco_trainval35k.json
-  valid: data/coco_minival5k.json
-#  train: data/coco_sample.json
-#  valid: data/coco_sample.json
+#  train: data/coco_trainval35k.json
+#  valid: data/coco_minival5k.json
+  train: data/coco_sample.json
+  valid: data/coco_sample.json
+#  train: data/voc07_train.json
+#  valid: data/voc07_valid.json
 basenet:
   type: resnet
   arch: resnet50
@@ -31,13 +33,13 @@ loss:
   giou_loss_coef: 2
   eos_coef: 0.1
 params:
-  batch_size: 7
+  batch_size: 12
   optimizer: AdamW
   lr: 1e-4
   weight_decay: 1e-4
   epoch: 300
   random_seed: 3000
-  image_size: 800x800 #rowsxcols
+  image_size: 640x640 #rowsxcols
   classes: data/coco_classes.txt
   data_worker: 0
 inference:

@@ -252,15 +252,16 @@ if __name__ == '__main__':
     print('==> Preparing data..')
     bbox_params = A.BboxParams(format='pascal_voc', min_visibility=0.3)
     train_transforms = A.Compose([
+        A.Resize(height=img_size[0], width=img_size[1], p=1.0),
         A.HorizontalFlip(p=0.5),
-        A.OneOf([
-            A.Sequential([
-                A.Resize(height=img_size[0], width=img_size[1], p=1.0),
-            ], p=1.0),
-            A.Sequential([
-                A.RandomSizedBBoxSafeCrop(height=img_size[0], width=img_size[1], p=1.0),
-            ], p=1.0)
-        ], p=1.0),
+        # A.OneOf([
+        #     A.Sequential([
+        #         A.Resize(height=img_size[0], width=img_size[1], p=1.0),
+        #     ], p=1.0),
+        #     A.Sequential([
+        #         A.RandomSizedBBoxSafeCrop(height=img_size[0], width=img_size[1], p=1.0),
+        #     ], p=1.0)
+        # ], p=1.0),
 
         A.OneOf([
             A.Sequential([
@@ -279,8 +280,8 @@ if __name__ == '__main__':
                 A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),
                 A.HueSaturationValue(hue_shift_limit=20, sat_shift_limit=30, val_shift_limit=0, p=0.5),
                 A.ChannelShuffle(p=0.5),
-                A.ShiftScaleRotate(shift_limit=0.1, scale_limit=(-0.15, 0.15), rotate_limit=30, p=0.5,
-                                   border_mode=cv2.BORDER_CONSTANT, value=0),
+                # A.ShiftScaleRotate(shift_limit=0.1, scale_limit=(-0.15, 0.15), rotate_limit=30, p=0.5,
+                #                    border_mode=cv2.BORDER_CONSTANT, value=0),
             ], p=1.0)
         ], p=1.0),
 

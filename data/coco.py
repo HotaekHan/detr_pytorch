@@ -54,6 +54,9 @@ for img_id in tqdm(img_ids):
         boxes.append([xmin, ymin, xmax, ymax])
         labels.append([class_name])
 
+    if len(boxes) == 0:
+        continue
+
     gt_key = 'img_' + str(img_idx)
     img_idx += 1
     out_dict[gt_key] = list()
