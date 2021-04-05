@@ -30,7 +30,8 @@ class SetCriterion(nn.Module):
         self.eos_coef = eos_coef
         self.losses = losses
         empty_weight = torch.ones(self.num_classes + 1)
-        empty_weight[-1] = self.eos_coef
+        # empty_weight[-1] = self.eos_coef
+        empty_weight[0] = self.eos_coef
         self.register_buffer('empty_weight', empty_weight)
         self.background_idx = 0
 
