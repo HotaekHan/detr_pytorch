@@ -3,7 +3,7 @@ import os
 import argparse
 import random
 import numpy as np
-import shutil
+import sys
 
 # pytorch
 import torch
@@ -12,18 +12,18 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
-import cv2
+from timer import Timer
 
 # user-defined
 from models.detr import DETR
 import utils
 from datagen import jsonDataset, ConcatBalancedDataset
+from box_ops import box_cxcywh_to_xyxy
 
 
 class Tester(object):
-    def __init__(self, config, trainset, validset, class_idx_map):
+    def __init__(self, config, trainset, validset, class_idx_map, img_size):
         self.config = config
-
         self.class_idx_map = class_idx_map
 
         '''cuda'''
@@ -47,20 +47,23 @@ class Tester(object):
         print('==> Preparing data..')
         ''' data loader'''
         train_loader = torch.utils.data.DataLoader(
-            trainset, batch_size=config['params']['batch_size'],
+            trainset, batch_size=config['inference']['batch_size'],
             shuffle=False, num_workers=config['params']['data_worker'],
             collate_fn=self.collate_fn,
             pin_memory=True)
         valid_loader = torch.utils.data.DataLoader(
-            validset, batch_size=config['params']['batch_size'],
+            validset, batch_size=config['inference']['batch_size'],
             shuffle=False, num_workers=config['params']['data_worker'],
             collate_fn=self.collate_fn,
             pin_memory=True)
 
         self.dataloaders = {'train': train_loader, 'valid': valid_loader}
 
-        '''tensorboard'''
-        self.summary_writer = SummaryWriter(os.path.join(config['model']['exp_path'], 'log'))
+        self.img_size = img_size
+
+        self.warmup_period = 10
+        self.timer_infer = Timer()
+        self.timer_post = Timer()
 
     def collate_fn(self, batch):
         batch = list(zip(*batch))
@@ -89,30 +92,56 @@ class Tester(object):
 
         # input("Press any key to continue..")
 
-    def test_on_data(self, dataset, img_size, out_dir):
+    def decode(self, outputs):
+        class_logits = outputs['pred_logits']
+        bbox_preds = outputs['pred_boxes']
+
+        class_preds = class_logits.softmax(dim=2)
+        bbox_preds = bbox_preds * torch.tensor([self.img_size[1], self.img_size[0], self.img_size[1], self.img_size[0]],
+                                               dtype=torch.float32, device=bbox_preds.device)
+        bbox_preds = box_cxcywh_to_xyxy(bbox_preds)
+
+        return class_preds, bbox_preds
+
+    def test_on_data(self, dataset, out_dir):
         self.net.eval()
         dataloader = self.dataloaders[dataset]
         data_out_dir = os.path.join(out_dir, dataset)
         if not os.path.exists(data_out_dir):
             os.makedirs(data_out_dir, exist_ok=True)
 
+        num_data = dataloader.dataset.num_samples
         with torch.set_grad_enabled(False):
             for batch_idx, (inputs, targets, mask, paths) in enumerate(dataloader):
+                if batch_idx == self.warmup_period:
+                    self.timer_infer.reset()
+                    self.timer_post.reset()
+
+                out_str = str(batch_idx * self.config['inference']['batch_size']) + ' / ' + str(num_data)
+                sys.stdout.write('\r' + out_str)
                 inputs = inputs.to(self.device)
+
+                torch.cuda.synchronize()
+                self.timer_infer.tic()
                 outputs = self.net(inputs)
+                torch.cuda.synchronize()
+                self.timer_infer.toc()
 
-                class_logits = outputs['pred_logits']
-                bbox_preds = outputs['pred_boxes']
+                torch.cuda.synchronize()
+                self.timer_post.tic()
+                class_preds, bbox_preds = self.decode(outputs=outputs)
+                torch.cuda.synchronize()
+                self.timer_post.toc()
 
-                utils._write_results(class_logits, bbox_preds, paths, self.class_idx_map, img_size, data_out_dir)
+                utils._write_results(class_preds, bbox_preds, paths, self.class_idx_map, self.img_size, data_out_dir)
 
+        print(f'device: {self.device}')
+        print(f'mean. elapsed time(inference): {self.timer_infer.average_time * 1000.:.4f}')
+        print(f'mean. elapsed time(post): {self.timer_post.average_time * 1000.:.4f}')
 
     def start(self, out_dir):
-        img_size = self.config['params']['image_size'].split('x')
-        img_size = (int(img_size[0]), int(img_size[1]))
-
         for dataset in self.dataloaders:
-            self.test_on_data(dataset, img_size, out_dir)
+            self.test_on_data(dataset=dataset, out_dir=out_dir)
 
 
 
@@ -141,7 +170,7 @@ if __name__ == '__main__':
     for idx in range(0, num_classes):
         class_idx_map[idx + 1] = target_classes[idx]
 
-    img_size = config['params']['image_size'].split('x')
+    img_size = config['inference']['image_size'].split('x')
     img_size = (int(img_size[0]), int(img_size[1]))
 
     print('==> Preparing data..')
@@ -166,7 +195,10 @@ if __name__ == '__main__':
     assert train_dataset
     assert valid_dataset
 
-    tester = Tester(config=config, trainset=train_dataset, validset=valid_dataset, class_idx_map=class_idx_map)
+    tester = Tester(config=config,
+                    trainset=train_dataset, validset=valid_dataset,
+                    class_idx_map=class_idx_map,
+                    img_size=img_size)
     tester.init_net(num_classes=num_classes)
     tester.print()
-    tester.start(output_dir)
+    tester.start(out_dir=output_dir)

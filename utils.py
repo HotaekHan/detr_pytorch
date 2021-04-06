@@ -8,8 +8,6 @@ from torch import Tensor
 import yaml
 import cv2
 
-from box_ops import box_cxcywh_to_xyxy
-
 # needed due to empty tensor bug in pytorch and torchvision 0.5
 import torchvision
 if float(torchvision.__version__[:3]) < 0.7:
@@ -147,7 +145,13 @@ def _load_weights(weights_dict):
 
     return new_weights
 
-def _write_results(class_logits, bbox_preds, img_paths, class_idx_map, input_size, out_dir):
+def _write_results(class_preds, bbox_preds, img_paths, class_idx_map, input_size, out_dir):
+    class_preds_label = class_preds.argmax(dim=2)
+
+    class_preds = class_preds.detach().cpu().tolist()
+    class_preds_label = class_preds_label.detach().cpu().tolist()
+    bbox_preds = bbox_preds.detach().cpu().tolist()
+
     for iter_batch, img_path in enumerate(img_paths):
         img_name = os.path.basename(img_path)
         out_path = os.path.join(out_dir, img_name.replace('.jpg', '.txt'))
@@ -161,15 +165,9 @@ def _write_results(class_logits, bbox_preds, img_paths, class_idx_map, input_siz
         ws = ori_cols / resized_cols
         hs = ori_rows / resized_rows
 
-        class_logit = class_logits[iter_batch]
+        class_pred = class_preds[iter_batch]
+        class_pred_label = class_preds_label[iter_batch]
         bbox_pred = bbox_preds[iter_batch]
-
-        class_pred = class_logit.softmax(dim=1)
-        class_pred_label = class_pred.argmax(dim=1).detach().cpu().tolist()
-        bbox_pred = bbox_pred * torch.tensor([resized_cols, resized_rows, resized_cols, resized_rows],
-                                             dtype=torch.float32, device=bbox_pred.device)
-        bbox_pred = box_cxcywh_to_xyxy(bbox_pred)
-        bbox_pred = bbox_pred.detach().cpu().tolist()
 
         for box_idx, box_label in enumerate(class_pred_label):
             ''' background idx is 0 '''
@@ -182,7 +180,7 @@ def _write_results(class_logits, bbox_preds, img_paths, class_idx_map, input_siz
             pt1 = (int(box[0] * ws), int(box[1] * hs))
             pt2 = (int(box[2] * ws), int(box[3] * hs))
             class_name = class_idx_map[box_label]
-            score = float(class_pred[box_idx][box_label].item())
+            score = float(class_pred[box_idx][box_label])
             out_text = class_name + ':' + format(score, ".2f")
             box_color = _get_box_color(class_name)
             cv2.rectangle(img, pt1, pt2, box_color, 1)
