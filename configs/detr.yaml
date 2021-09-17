@@ -33,7 +33,7 @@ loss:
   giou_loss_coef: 2
   eos_coef: 0.1
 params:
-  batch_size: 12
+  batch_size: 6
   optimizer: AdamW
   lr: 1e-4
   weight_decay: 1e-4
@@ -43,8 +43,8 @@ params:
   classes: data/coco_classes.txt
   data_worker: 0
 inference:
-  top_k: 1000
-  resized: False
+  batch_size: 12
+  image_size: 640x640 #rowsxcols
 model:
   model_path: None
   exp_path: /data/Expr/Projects/8_object_detection/detr/tmp
