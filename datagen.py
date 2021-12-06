@@ -126,6 +126,7 @@ class jsonDataset(data.Dataset):
         boxes = self.boxes[idx]
         labels = self.labels[idx]
         img = cv2.imread(fname)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
         bboxes = [bbox.tolist() + [label.item()] for bbox, label in zip(boxes, labels)]
         augmented = self.transforms(image=img, bboxes=bboxes)
@@ -140,7 +141,8 @@ class jsonDataset(data.Dataset):
             mask[int(box[1]):int(box[3]), int(box[0]):int(box[2])] = 1
 
         if self.view_img is True:
-            np_img = img.numpy()
+            np_img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+            np_img = np_img.numpy()
             np_img = np.transpose(np_img, (1, 2, 0))
             np_img = np.uint8(np_img * 255)
             np_img = np.ascontiguousarray(np_img)
